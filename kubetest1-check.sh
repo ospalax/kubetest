@@ -8,6 +8,8 @@ set -e
 
 KUBETEST_MANIFEST=kubetest1-manifest.yaml
 MYSQL_ROOT_PASSWORD=kubetest
+MYSQL_DB_NAME=kubetest
+MYSQL_TABLE_NAME=kubetest
 MYSQL_KUBETEST_CHECK_VALUE='MYSQL KUBETEST SUCCESS'
 
 
@@ -22,6 +24,12 @@ on_exit()
 # start
 
 trap on_exit EXIT
+
+
+# cleanup old services and deployments
+echo 'KUBETEST INFO: First cleanup previous deployments (if any)'
+kubectl delete services kubetest-service mysql-service || true
+kubectl delete deployments kubetest-deployment mysql-deployment || true
 
 
 # gather info about kubernetes cluster
@@ -65,6 +73,9 @@ cat "$KUBETEST_MANIFEST" > "$KUBETEST_MANIFEST".expanded
 sed -i -e 's/[$]{ANTI_AFFINITY}/'"$ANTI_AFFINITY"'/g' \
     -e 's/[$]{PUBLIC_IP}/'"$kube_master_node"'/g' \
     -e 's/[$]{MYSQL_ROOT_PASSWORD}/'"$MYSQL_ROOT_PASSWORD"'/g' \
+    -e 's/[$]{MYSQL_DB_NAME}/'"$MYSQL_DB_NAME"'/g' \
+    -e 's/[$]{MYSQL_TABLE_NAME}/'"$MYSQL_TABLE_NAME"'/g' \
+    -e 's/[$]{MYSQL_KUBETEST_CHECK_VALUE}/'"$MYSQL_KUBETEST_CHECK_VALUE"'/g' \
     "$KUBETEST_MANIFEST".expanded
 kubectl apply -f "$KUBETEST_MANIFEST".expanded
 
@@ -108,29 +119,23 @@ fi
 
 echo 'KUBETEST INFO: Populate mysql'
 kubectl exec "$mysql_pod_name" -it -- mysql -u root -p${MYSQL_ROOT_PASSWORD} <<EOF
-CREATE DATABASE IF NOT EXISTS kubetest;
+CREATE DATABASE IF NOT EXISTS ${MYSQL_DB_NAME};
 
-USE kubetest;
+USE ${MYSQL_DB_NAME};
 
-DROP TABLE IF EXISTS kubetest;
+DROP TABLE IF EXISTS ${MYSQL_TABLE_NAME};
 
-CREATE TABLE kubetest (
+CREATE TABLE ${MYSQL_TABLE_NAME} (
   kubetest_check_value varchar(60) DEFAULT NULL
 );
 
-INSERT INTO kubetest(kubetest_check_value) VALUES ('${MYSQL_KUBETEST_CHECK_VALUE}');
+INSERT INTO ${MYSQL_TABLE_NAME}(kubetest_check_value) VALUES ('${MYSQL_KUBETEST_CHECK_VALUE}');
 EOF
 
 
 # Check published kubetest service
 
-echo 'KUBETEST INFO: Check kubetest http port 80 on master node'
+echo 'KUBETEST INFO: Check kubetest service on http port (80) on master node'
 curl "${kube_master_node}:80"
 
 exit 0
-
-#mysql> create database kubetest;
-#mysql> use kubetest;
-#mysql> create table kubetest(kubetest_check_value varchar(60));
-#mysql> insert into kubetest (kubetest_check_value) values ('MYSQL KUBETEST SUCCESS');
-#mysql> select kubetest_check_value from kubetest.kubetest;
