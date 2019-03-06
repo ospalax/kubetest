@@ -50,8 +50,34 @@ spec:
       - name: kubetest-http
         image: python:3
         imagePullPolicy: IfNotPresent
-        command: ["/bin/sh"]
-        args: ["-c", "echo \"KUBETEST OK: Hello from $(hostname)\" > index.html; python3 -m http.server 8080"]
+        command:
+        - /bin/sh
+        - "-c"
+        - |
+          pip3 install flask mysql-connector-python
+          cat > web.py <<EOF
+          from flask import Flask
+          from socket import gethostname
+          import mysql.connector
+          app = Flask(__name__)
+          @app.route("/")
+          def hello():
+              hostname = gethostname()
+              mydb = mysql.connector.connect(
+                  host="mysql-service",
+                  user="root",
+                  password="${MYSQL_ROOT_PASSWORD}",
+                  database="${MYSQL_DB_NAME}"
+              )
+              mycursor = mydb.cursor()
+              mycursor.execute("SELECT * FROM ${MYSQL_TABLE_NAME}")
+              myresult = mycursor.fetchone()
+              mydb.close()
+              kubetest_result = "KUBETEST CHECK: WEB OK: Hello from %s !\n" % (hostname)
+              kubetest_result += "KUBETEST CHECK: MYSQL OK: %s \n" % (myresult)
+              return kubetest_result
+          EOF
+          FLASK_APP=web.py python3 -m flask run --host=0.0.0.0 --port=8080
         ports:
         - name: http
           containerPort: 8080
