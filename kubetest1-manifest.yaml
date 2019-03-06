@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubetest-service
+spec:
+  selector:
+    app: kubetest_pod
+  ports:
+  - port: 80
+    targetPort: http
+  externalIPs:
+  - ${PUBLIC_IP}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+spec:
+  selector:
+    app: mysql_pod
+  ports:
+  - port: 3306
+    targetPort: mysql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubetest-deployment
+spec:
+  selector:
+    matchLabels:
+      app: kubetest_pod
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kubetest_pod
+    spec:
+      affinity:
+        pod${ANTI_AFFINITY}Affinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - mysql_pod
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: kubetest-http
+        image: python:3
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh"]
+        args: ["-c", "echo \"KUBETEST OK: Hello from $(hostname)\" > index.html; python3 -m http.server 8080"]
+        ports:
+        - name: http
+          containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+spec:
+  selector:
+    matchLabels:
+      app: mysql_pod
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql_pod
+    spec:
+      containers:
+      - name: kubetest-mysql
+        image: mysql:5.6
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: ${MYSQL_ROOT_PASSWORD}
+        ports:
+        - name: mysql
+          containerPort: 3306
