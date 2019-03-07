@@ -10,14 +10,31 @@ KUBETEST_MANIFEST=kubetest1-manifest.yaml
 MYSQL_ROOT_PASSWORD=kubetest
 MYSQL_DB_NAME=kubetest
 MYSQL_TABLE_NAME=kubetest
-MYSQL_KUBETEST_CHECK_VALUE='MYSQL KUBETEST SUCCESS'
+MYSQL_KUBETEST_CHECK_VALUE='KUBETEST-DB-CHECK'
 
 
 # functions
 
 on_exit()
 {
-    echo REPORT
+    rm -f "$KUBETEST_MANIFEST".expanded
+    cat <<EOF
+
+    KUBETEST REPORT
+    ===============
+
+    manifest:           ${KUBETEST_MANIFEST}
+
+    cluster nodes:      $(echo ${kube_nodes} | sed 's/[[:space:]]\+/ /g')
+    kubernetes master:  ${kube_master_node}
+
+    multi-node cluster: ${MULTI_NODE}
+
+    ${kubetest_pod_name:-kubetest-pod}: ${kubetest_pod_hostip}
+    ${mysql_pod_name:-mysql-pod}: ${mysql_pod_hostip}
+
+    ${KUBETEST_FINAL_RESULT}
+EOF
 }
 
 
@@ -136,6 +153,6 @@ EOF
 # Check published kubetest service
 
 echo 'KUBETEST INFO: Check kubetest service on http port (80) on master node'
-curl "${kube_master_node}:80"
+KUBETEST_FINAL_RESULT=$(curl -Ls "${kube_master_node}:80" || true)
 
 exit 0

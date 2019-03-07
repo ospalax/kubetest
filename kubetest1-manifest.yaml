@@ -73,8 +73,13 @@ spec:
               mycursor.execute("SELECT * FROM ${MYSQL_TABLE_NAME}")
               myresult = mycursor.fetchone()
               mydb.close()
-              kubetest_result = "KUBETEST CHECK: WEB OK: Hello from %s !\n" % (hostname)
-              kubetest_result += "KUBETEST CHECK: MYSQL OK: %s \n" % (myresult)
+              kubetest_result = "KUBETEST CHECK: WEB OK: Hello from %s\n" % (hostname)
+              #kubetest_result += "KUBETEST CHECK: DB RESULT: %s\n" % (myresult)
+              myresult = "%s" % (myresult)
+              if myresult == '${MYSQL_KUBETEST_CHECK_VALUE}':
+                kubetest_result += "KUBETEST CHECK: DB OK\n"
+              else:
+                kubetest_result += "KUBETEST CHECK: DB ERROR\n"
               return kubetest_result
           EOF
           FLASK_APP=web.py python3 -m flask run --host=0.0.0.0 --port=8080
