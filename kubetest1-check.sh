@@ -33,7 +33,8 @@ on_exit()
     ${kubetest_pod_name:-kubetest-pod}: ${kubetest_pod_hostip}
     ${mysql_pod_name:-mysql-pod}: ${mysql_pod_hostip}
 
-    ${KUBETEST_FINAL_RESULT}
+$(echo "${KUBETEST_FINAL_RESULT:-KUBETEST CHECK: WEB ERROR}" | \
+    sed -n 's/^.\+$/    &/p')
 EOF
 }
 
@@ -47,6 +48,11 @@ trap on_exit EXIT
 echo 'KUBETEST INFO: First cleanup previous deployments (if any)'
 kubectl delete services kubetest-service mysql-service || true
 kubectl delete deployments kubetest-deployment mysql-deployment || true
+
+echo 'KUBETEST INFO: Waiting for pods to disappear...'
+while [ -n "$(kubectl get pods -o jsonpath='{.items[*]}')" ] ; do
+    sleep 2s
+done
 
 
 # gather info about kubernetes cluster
@@ -134,6 +140,14 @@ fi
 
 # populate mysql
 
+echo 'KUBETEST INFO: Wait for mysql to get ready...'
+while ! kubectl exec "$mysql_pod_name" -it -- \
+    mysql -sN -u root -pkubetest -e "SELECT 'MYSQL-IS-READY'" \
+    >/dev/null 2>/dev/null ;
+do
+    sleep 1s
+done
+
 echo 'KUBETEST INFO: Populate mysql'
 kubectl exec "$mysql_pod_name" -it -- mysql -u root -p${MYSQL_ROOT_PASSWORD} <<EOF
 CREATE DATABASE IF NOT EXISTS ${MYSQL_DB_NAME};
@@ -153,6 +167,9 @@ EOF
 # Check published kubetest service
 
 echo 'KUBETEST INFO: Check kubetest service on http port (80) on master node'
+while ! curl -Ls "${kube_master_node}:80" >/dev/null 2>/dev/null ; do
+    sleep 1s
+done
 KUBETEST_FINAL_RESULT=$(curl -Ls "${kube_master_node}:80" || true)
 
 exit 0
