@@ -102,15 +102,15 @@ sed -i -e 's/[$]{ANTI_AFFINITY}/'"$ANTI_AFFINITY"'/g' \
     "$KUBETEST_MANIFEST".expanded
 kubectl apply -f "$KUBETEST_MANIFEST".expanded
 
-echo 'KUBETEST INFO: Wait for kubetest pod...'
-while [ "$(kubectl get pods --selector=app=kubetest_pod -o json \
+echo 'KUBETEST INFO: Wait for mysql pod...'
+while [ "$(kubectl get pods --selector=app=mysql_pod -o json \
         | jq '.items[0].status.containerStatuses[0].ready')" != true ] ;
 do
     sleep 2s
 done
 
-echo 'KUBETEST INFO: Wait for mysql pod...'
-while [ "$(kubectl get pods --selector=app=mysql_pod -o json \
+echo 'KUBETEST INFO: Wait for kubetest pod...'
+while [ "$(kubectl get pods --selector=app=kubetest_pod -o json \
         | jq '.items[0].status.containerStatuses[0].ready')" != true ] ;
 do
     sleep 2s
@@ -140,14 +140,6 @@ fi
 
 # populate mysql
 
-echo 'KUBETEST INFO: Wait for mysql to get ready...'
-while ! kubectl exec "$mysql_pod_name" -it -- \
-    mysql -sN -u root -pkubetest -e "SELECT 'MYSQL-IS-READY'" \
-    >/dev/null 2>/dev/null ;
-do
-    sleep 1s
-done
-
 echo 'KUBETEST INFO: Populate mysql'
 kubectl exec "$mysql_pod_name" -it -- mysql -u root -p${MYSQL_ROOT_PASSWORD} <<EOF
 CREATE DATABASE IF NOT EXISTS ${MYSQL_DB_NAME};
@@ -167,9 +159,6 @@ EOF
 # Check published kubetest service
 
 echo 'KUBETEST INFO: Check kubetest service on http port (80) on master node'
-while ! curl -Ls "${kube_master_node}:80" >/dev/null 2>/dev/null ; do
-    sleep 1s
-done
 KUBETEST_FINAL_RESULT=$(curl -Ls "${kube_master_node}:80" || true)
 
 exit 0

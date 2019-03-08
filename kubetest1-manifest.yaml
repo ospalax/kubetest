@@ -63,16 +63,19 @@ spec:
           @app.route("/")
           def hello():
               hostname = gethostname()
-              mydb = mysql.connector.connect(
-                  host="mysql-service",
-                  user="root",
-                  password="${MYSQL_ROOT_PASSWORD}",
-                  database="${MYSQL_DB_NAME}"
-              )
-              mycursor = mydb.cursor()
-              mycursor.execute("SELECT * FROM ${MYSQL_TABLE_NAME}")
-              myresult = mycursor.fetchone()
-              mydb.close()
+              try:
+                mydb = mysql.connector.connect(
+                    host="mysql-service",
+                    user="root",
+                    password="${MYSQL_ROOT_PASSWORD}",
+                    database="${MYSQL_DB_NAME}"
+                )
+                mycursor = mydb.cursor()
+                mycursor.execute("SELECT * FROM ${MYSQL_TABLE_NAME}")
+                myresult = mycursor.fetchone()
+                mydb.close()
+              except:
+                myresult = "CONNECTION-FAILURE"
               kubetest_result = "KUBETEST CHECK: WEB OK: Hello from %s\n" % (hostname)
               #kubetest_result += "KUBETEST CHECK: DB RESULT: %s\n" % (myresult)
               myresult = "%s" % (myresult)
@@ -86,6 +89,12 @@ spec:
         ports:
         - name: http
           containerPort: 8080
+        readinessProbe:
+          exec:
+            command: ["curl", "-sL", "127.0.0.1:8080"]
+          initialDelaySeconds: 5
+          periodSeconds: 2
+          timeoutSeconds: 1
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -111,3 +120,9 @@ spec:
         ports:
         - name: mysql
           containerPort: 3306
+        readinessProbe:
+          exec:
+            command: ["mysql", "-sN", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}", "-e", "SELECT 1"]
+          initialDelaySeconds: 5
+          periodSeconds: 2
+          timeoutSeconds: 1
